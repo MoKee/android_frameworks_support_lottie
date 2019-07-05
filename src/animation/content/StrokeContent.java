@@ -3,11 +3,13 @@ package frameworks.support.lottie.animation.content;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Matrix;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 import frameworks.support.lottie.LottieDrawable;
 import frameworks.support.lottie.LottieProperty;
 import frameworks.support.lottie.animation.keyframe.BaseKeyframeAnimation;
+import frameworks.support.lottie.animation.keyframe.ColorKeyframeAnimation;
+import frameworks.support.lottie.animation.keyframe.IntegerKeyframeAnimation;
 import frameworks.support.lottie.animation.keyframe.ValueCallbackKeyframeAnimation;
 import frameworks.support.lottie.model.content.ShapeStroke;
 import frameworks.support.lottie.model.layer.BaseLayer;
@@ -17,22 +19,32 @@ import static frameworks.support.lottie.LottieProperty.STROKE_COLOR;
 
 public class StrokeContent extends BaseStrokeContent {
 
+  private final BaseLayer layer;
   private final String name;
+  private final boolean hidden;
   private final BaseKeyframeAnimation<Integer, Integer> colorAnimation;
   @Nullable private BaseKeyframeAnimation<ColorFilter, ColorFilter> colorFilterAnimation;
 
   public StrokeContent(final LottieDrawable lottieDrawable, BaseLayer layer, ShapeStroke stroke) {
     super(lottieDrawable, layer, stroke.getCapType().toPaintCap(),
-        stroke.getJoinType().toPaintJoin(), stroke.getOpacity(), stroke.getWidth(),
-        stroke.getLineDashPattern(), stroke.getDashOffset());
+        stroke.getJoinType().toPaintJoin(), stroke.getMiterLimit(), stroke.getOpacity(),
+        stroke.getWidth(), stroke.getLineDashPattern(), stroke.getDashOffset());
+    this.layer = layer;
     name = stroke.getName();
+    hidden = stroke.isHidden();
     colorAnimation = stroke.getColor().createAnimation();
     colorAnimation.addUpdateListener(this);
     layer.addAnimation(colorAnimation);
   }
 
   @Override public void draw(Canvas canvas, Matrix parentMatrix, int parentAlpha) {
-    paint.setColor(colorAnimation.getValue());
+    if (hidden) {
+      return;
+    }
+    paint.setColor(((ColorKeyframeAnimation) colorAnimation).getIntValue());
+    if (colorFilterAnimation != null) {
+      paint.setColorFilter(colorFilterAnimation.getValue());
+    }
     super.draw(canvas, parentMatrix, parentAlpha);
   }
 
@@ -52,6 +64,8 @@ public class StrokeContent extends BaseStrokeContent {
       } else {
         colorFilterAnimation =
             new ValueCallbackKeyframeAnimation<>((LottieValueCallback<ColorFilter>) callback);
+        colorFilterAnimation.addUpdateListener(this);
+        layer.addAnimation(colorAnimation);
       }
     }
   }

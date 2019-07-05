@@ -1,13 +1,16 @@
 package frameworks.support.lottie.animation.keyframe;
 
-import android.support.annotation.FloatRange;
-import android.support.annotation.Nullable;
+import android.util.Log;
 
-import frameworks.support.lottie.value.LottieValueCallback;
 import frameworks.support.lottie.value.Keyframe;
+import frameworks.support.lottie.value.LottieValueCallback;
 
+import java.security.Key;
 import java.util.ArrayList;
 import java.util.List;
+
+import androidx.annotation.FloatRange;
+import androidx.annotation.Nullable;
 
 /**
  * @param <K> Keyframe type
@@ -19,7 +22,7 @@ public abstract class BaseKeyframeAnimation<K, A> {
   }
 
   // This is not a Set because we don't want to create an iterator object on every setProgress.
-  final List<AnimationListener> listeners = new ArrayList<>();
+  final List<AnimationListener> listeners = new ArrayList<>(1);
   private boolean isDiscrete = false;
 
   private final List<? extends Keyframe<K>> keyframes;
@@ -27,6 +30,13 @@ public abstract class BaseKeyframeAnimation<K, A> {
   @Nullable protected LottieValueCallback<A> valueCallback;
 
   @Nullable private Keyframe<K> cachedKeyframe;
+
+  @Nullable private Keyframe<K> cachedGetValueKeyframe;
+  private float cachedGetValueProgress = -1f;
+  @Nullable private A cachedGetValue = null;
+
+  private float cachedStartDelayProgress = -1f;
+  private float cachedEndProgress = -1f;
 
   BaseKeyframeAnimation(List<? extends Keyframe<K>> keyframes) {
     this.keyframes = keyframes;
@@ -41,6 +51,12 @@ public abstract class BaseKeyframeAnimation<K, A> {
   }
 
   public void setProgress(@FloatRange(from = 0f, to = 1f) float progress) {
+    if (keyframes.isEmpty()) {
+      return;
+    }
+    // Must use hashCode() since the actual object instance will be returned
+    // from getValue() below with the new values.
+    Keyframe<K> previousKeyframe = getCurrentKeyframe();
     if (progress < getStartDelayProgress()) {
       progress = getStartDelayProgress();
     } else if (progress > getEndProgress()) {
@@ -51,8 +67,12 @@ public abstract class BaseKeyframeAnimation<K, A> {
       return;
     }
     this.progress = progress;
+    // Just trigger a change but don't compute values if there is a value callback.
+    Keyframe<K> newKeyframe = getCurrentKeyframe();
 
-    notifyListeners();
+    if (previousKeyframe != newKeyframe || !newKeyframe.isStatic()) {
+      notifyListeners();
+    }
   }
 
   public void notifyListeners() {
@@ -61,7 +81,7 @@ public abstract class BaseKeyframeAnimation<K, A> {
     }
   }
 
-  private Keyframe<K> getCurrentKeyframe() {
+  protected Keyframe<K> getCurrentKeyframe() {
     if (cachedKeyframe != null && cachedKeyframe.containsProgress(progress)) {
       return cachedKeyframe;
     }
@@ -102,7 +122,7 @@ public abstract class BaseKeyframeAnimation<K, A> {
    * Takes the value of {@link #getLinearCurrentKeyframeProgress()} and interpolates it with
    * the current keyframe's interpolator.
    */
-  private float getInterpolatedCurrentKeyframeProgress() {
+  protected float getInterpolatedCurrentKeyframeProgress() {
     Keyframe<K> keyframe = getCurrentKeyframe();
     if (keyframe.isStatic()) {
       return 0f;
@@ -113,16 +133,33 @@ public abstract class BaseKeyframeAnimation<K, A> {
 
   @FloatRange(from = 0f, to = 1f)
   private float getStartDelayProgress() {
-    return keyframes.isEmpty() ? 0f : keyframes.get(0).getStartProgress();
+      if (cachedStartDelayProgress == -1f) {
+            cachedStartDelayProgress = keyframes.isEmpty() ? 0f : keyframes.get(0).getStartProgress();
+      }
+      return cachedStartDelayProgress;
   }
 
   @FloatRange(from = 0f, to = 1f)
   float getEndProgress() {
-    return keyframes.isEmpty() ? 1f : keyframes.get(keyframes.size() - 1).getEndProgress();
+      if (cachedEndProgress == -1f) {
+        cachedEndProgress = keyframes.isEmpty() ? 1f : keyframes.get(keyframes.size() - 1).getEndProgress();
+      }
+      return cachedEndProgress;
   }
 
   public A getValue() {
-    return getValue(getCurrentKeyframe(), getInterpolatedCurrentKeyframeProgress());
+    Keyframe<K> keyframe = getCurrentKeyframe();
+    float progress = getInterpolatedCurrentKeyframeProgress();
+    if (valueCallback == null && keyframe == cachedGetValueKeyframe && cachedGetValueProgress == progress) {
+      return cachedGetValue;
+    }
+
+    cachedGetValueKeyframe = keyframe;
+    cachedGetValueProgress = progress;
+    A value = getValue(keyframe, progress);
+    cachedGetValue = value;
+
+    return value;
   }
 
   public float getProgress() {

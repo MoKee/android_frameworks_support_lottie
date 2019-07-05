@@ -1,7 +1,7 @@
 package frameworks.support.lottie;
 
-import android.support.v4.util.ArraySet;
-import android.support.v4.util.Pair;
+import androidx.collection.ArraySet;
+import androidx.core.util.Pair;
 import android.util.Log;
 
 import frameworks.support.lottie.utils.MeanCalculator;
@@ -64,7 +64,7 @@ public class PerformanceTracker {
   }
 
   @SuppressWarnings("unused") public void removeFrameListener(FrameListener frameListener) {
-    frameListeners.add(frameListener);
+    frameListeners.remove(frameListener);
   }
 
   public void clearRenderTimes() {

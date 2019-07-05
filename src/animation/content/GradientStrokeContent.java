@@ -7,14 +7,18 @@ import android.graphics.PointF;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
-import android.support.v4.util.LongSparseArray;
+import androidx.annotation.Nullable;
+import androidx.collection.LongSparseArray;
 
 import frameworks.support.lottie.LottieDrawable;
+import frameworks.support.lottie.LottieProperty;
 import frameworks.support.lottie.animation.keyframe.BaseKeyframeAnimation;
+import frameworks.support.lottie.animation.keyframe.ValueCallbackKeyframeAnimation;
 import frameworks.support.lottie.model.content.GradientColor;
 import frameworks.support.lottie.model.content.GradientStroke;
 import frameworks.support.lottie.model.content.GradientType;
 import frameworks.support.lottie.model.layer.BaseLayer;
+import frameworks.support.lottie.value.LottieValueCallback;
 
 public class GradientStrokeContent extends BaseStrokeContent {
   /**
@@ -23,6 +27,7 @@ public class GradientStrokeContent extends BaseStrokeContent {
   private static final int CACHE_STEPS_MS = 32;
 
   private final String name;
+  private final boolean hidden;
   private final LongSparseArray<LinearGradient> linearGradientCache = new LongSparseArray<>();
   private final LongSparseArray<RadialGradient> radialGradientCache = new LongSparseArray<>();
   private final RectF boundsRect = new RectF();
@@ -32,15 +37,17 @@ public class GradientStrokeContent extends BaseStrokeContent {
   private final BaseKeyframeAnimation<GradientColor, GradientColor> colorAnimation;
   private final BaseKeyframeAnimation<PointF, PointF> startPointAnimation;
   private final BaseKeyframeAnimation<PointF, PointF> endPointAnimation;
+  @Nullable private ValueCallbackKeyframeAnimation colorCallbackAnimation;
 
   public GradientStrokeContent(
       final LottieDrawable lottieDrawable, BaseLayer layer, GradientStroke stroke) {
     super(lottieDrawable, layer, stroke.getCapType().toPaintCap(),
-        stroke.getJoinType().toPaintJoin(), stroke.getOpacity(), stroke.getWidth(),
-        stroke.getLineDashPattern(), stroke.getDashOffset());
+        stroke.getJoinType().toPaintJoin(), stroke.getMiterLimit(), stroke.getOpacity(),
+        stroke.getWidth(), stroke.getLineDashPattern(), stroke.getDashOffset());
 
     name = stroke.getName();
     type = stroke.getGradientType();
+    hidden = stroke.isHidden();
     cacheSteps = (int) (lottieDrawable.getComposition().getDuration() / CACHE_STEPS_MS);
 
     colorAnimation = stroke.getGradientColor().createAnimation();
@@ -57,12 +64,18 @@ public class GradientStrokeContent extends BaseStrokeContent {
   }
 
   @Override public void draw(Canvas canvas, Matrix parentMatrix, int parentAlpha) {
-    getBounds(boundsRect, parentMatrix);
-    if (type == GradientType.Linear) {
-      paint.setShader(getLinearGradient());
-    } else {
-      paint.setShader(getRadialGradient());
+    if (hidden) {
+      return;
     }
+    getBounds(boundsRect, parentMatrix, false);
+
+    Shader shader;
+    if (type == GradientType.LINEAR) {
+      shader = getLinearGradient();
+    } else {
+      shader = getRadialGradient();
+    }
+    paint.setShader(shader);
 
     super.draw(canvas, parentMatrix, parentAlpha);
   }
@@ -80,7 +93,7 @@ public class GradientStrokeContent extends BaseStrokeContent {
     PointF startPoint = startPointAnimation.getValue();
     PointF endPoint = endPointAnimation.getValue();
     GradientColor gradientColor = colorAnimation.getValue();
-    int[] colors = gradientColor.getColors();
+    int[] colors = applyDynamicColorsIfNeeded(gradientColor.getColors());
     float[] positions = gradientColor.getPositions();
     int x0 = (int) (boundsRect.left + boundsRect.width() / 2 + startPoint.x);
     int y0 = (int) (boundsRect.top + boundsRect.height() / 2 + startPoint.y);
@@ -100,7 +113,7 @@ public class GradientStrokeContent extends BaseStrokeContent {
     PointF startPoint = startPointAnimation.getValue();
     PointF endPoint = endPointAnimation.getValue();
     GradientColor gradientColor = colorAnimation.getValue();
-    int[] colors = gradientColor.getColors();
+    int[] colors = applyDynamicColorsIfNeeded(gradientColor.getColors());
     float[] positions = gradientColor.getPositions();
     int x0 = (int) (boundsRect.left + boundsRect.width() / 2 + startPoint.x);
     int y0 = (int) (boundsRect.top + boundsRect.height() / 2 + startPoint.y);
@@ -127,5 +140,39 @@ public class GradientStrokeContent extends BaseStrokeContent {
       hash = hash * 31 * colorProgress;
     }
     return hash;
+  }
+
+  private int[] applyDynamicColorsIfNeeded(int[] colors) {
+    if (colorCallbackAnimation != null) {
+      Integer[] dynamicColors = (Integer[]) colorCallbackAnimation.getValue();
+      if (colors.length == dynamicColors.length) {
+        for (int i = 0; i < colors.length; i++) {
+          colors[i] = dynamicColors[i];
+        }
+      } else {
+        colors = new int[dynamicColors.length];
+        for (int i = 0; i < dynamicColors.length; i++) {
+          colors[i] = dynamicColors[i];
+        }
+      }
+    }
+    return colors;
+  }
+
+  @Override
+  public <T> void addValueCallback(T property, @Nullable LottieValueCallback<T> callback) {
+    super.addValueCallback(property, callback);
+    if (property == LottieProperty.GRADIENT_COLOR) {
+      if (callback == null) {
+        if (colorCallbackAnimation != null) {
+          layer.removeAnimation(colorCallbackAnimation);
+        }
+        colorCallbackAnimation = null;
+      } else {
+        colorCallbackAnimation = new ValueCallbackKeyframeAnimation<>(callback);
+        colorCallbackAnimation.addUpdateListener(this);
+        layer.addAnimation(colorCallbackAnimation);
+      }
+    }
   }
 }

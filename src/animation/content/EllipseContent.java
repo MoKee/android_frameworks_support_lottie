@@ -2,7 +2,8 @@ package frameworks.support.lottie.animation.content;
 
 import android.graphics.Path;
 import android.graphics.PointF;
-import android.support.annotation.Nullable;
+
+import androidx.annotation.Nullable;
 
 import frameworks.support.lottie.LottieDrawable;
 import frameworks.support.lottie.LottieProperty;
@@ -12,7 +13,6 @@ import frameworks.support.lottie.model.content.CircleShape;
 import frameworks.support.lottie.model.content.ShapeTrimPath;
 import frameworks.support.lottie.model.layer.BaseLayer;
 import frameworks.support.lottie.utils.MiscUtils;
-import frameworks.support.lottie.utils.Utils;
 import frameworks.support.lottie.value.LottieValueCallback;
 
 import java.util.List;
@@ -29,7 +29,7 @@ public class EllipseContent
   private final BaseKeyframeAnimation<?, PointF> positionAnimation;
   private final CircleShape circleShape;
 
-  @Nullable private TrimPathContent trimPath;
+  private CompoundTrimPathContent trimPaths = new CompoundTrimPathContent();
   private boolean isPathValid;
 
   public EllipseContent(LottieDrawable lottieDrawable, BaseLayer layer, CircleShape circleShape) {
@@ -58,9 +58,9 @@ public class EllipseContent
   @Override public void setContents(List<Content> contentsBefore, List<Content> contentsAfter) {
     for (int i = 0; i < contentsBefore.size(); i++) {
       Content content = contentsBefore.get(i);
-      if (content instanceof TrimPathContent &&
-          ((TrimPathContent) content).getType() == ShapeTrimPath.Type.Simultaneously) {
-        trimPath = (TrimPathContent) content;
+      if (content instanceof TrimPathContent && ((TrimPathContent) content).getType() == ShapeTrimPath.Type.SIMULTANEOUSLY) {
+        TrimPathContent trimPath = (TrimPathContent) content;
+        trimPaths.addTrimPath(trimPath);
         trimPath.addListener(this);
       }
     }
@@ -77,6 +77,10 @@ public class EllipseContent
 
     path.reset();
 
+    if (circleShape.isHidden()) {
+      isPathValid = true;
+      return path;
+    }
 
     PointF size = sizeAnimation.getValue();
     float halfWidth = size.x / 2f;
@@ -106,7 +110,7 @@ public class EllipseContent
 
     path.close();
 
-    Utils.applyTrimPathIfNeeded(path, trimPath);
+    trimPaths.apply(path);
 
     isPathValid = true;
     return path;

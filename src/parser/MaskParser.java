@@ -1,13 +1,11 @@
 package frameworks.support.lottie.parser;
 
-import android.util.JsonReader;
-import android.util.Log;
-
-import frameworks.support.lottie.L;
 import frameworks.support.lottie.LottieComposition;
 import frameworks.support.lottie.model.animatable.AnimatableIntegerValue;
 import frameworks.support.lottie.model.animatable.AnimatableShapeValue;
 import frameworks.support.lottie.model.content.Mask;
+import frameworks.support.lottie.parser.moshi.JsonReader;
+import frameworks.support.lottie.utils.Logger;
 
 import java.io.IOException;
 
@@ -20,6 +18,7 @@ class MaskParser {
     Mask.MaskMode maskMode = null;
     AnimatableShapeValue maskPath = null;
     AnimatableIntegerValue opacity = null;
+    boolean inverted = false;
 
     reader.beginObject();
     while (reader.hasNext()) {
@@ -28,17 +27,19 @@ class MaskParser {
         case "mode":
           switch (reader.nextString()) {
             case "a":
-              maskMode = Mask.MaskMode.MaskModeAdd;
+              maskMode = Mask.MaskMode.MASK_MODE_ADD;
               break;
             case "s":
-              maskMode = Mask.MaskMode.MaskModeSubtract;
+              maskMode = Mask.MaskMode.MASK_MODE_SUBTRACT;
               break;
             case "i":
-              maskMode = Mask.MaskMode.MaskModeIntersect;
+              composition.addWarning(
+                  "Animation contains intersect masks. They are not supported but will be treated like add masks.");
+              maskMode = Mask.MaskMode.MASK_MODE_INTERSECT;
               break;
             default:
-              Log.w(L.TAG, "Unknown mask mode " + mode + ". Defaulting to Add.");
-              maskMode = Mask.MaskMode.MaskModeAdd;
+              Logger.warning("Unknown mask mode " + mode + ". Defaulting to Add.");
+              maskMode = Mask.MaskMode.MASK_MODE_ADD;
           }
           break;
         case "pt":
@@ -47,13 +48,16 @@ class MaskParser {
         case "o":
           opacity = AnimatableValueParser.parseInteger(reader, composition);
           break;
+        case "inv":
+          inverted = reader.nextBoolean();
+          break;
         default:
           reader.skipValue();
       }
     }
     reader.endObject();
 
-    return new Mask(maskMode, maskPath, opacity);
+    return new Mask(maskMode, maskPath, opacity, inverted);
   }
 
 }

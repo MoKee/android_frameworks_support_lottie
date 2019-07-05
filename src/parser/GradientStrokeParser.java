@@ -1,6 +1,5 @@
 package frameworks.support.lottie.parser;
 
-import android.util.JsonReader;
 
 import frameworks.support.lottie.LottieComposition;
 import frameworks.support.lottie.model.animatable.AnimatableFloatValue;
@@ -10,6 +9,7 @@ import frameworks.support.lottie.model.animatable.AnimatablePointValue;
 import frameworks.support.lottie.model.content.GradientStroke;
 import frameworks.support.lottie.model.content.GradientType;
 import frameworks.support.lottie.model.content.ShapeStroke;
+import frameworks.support.lottie.parser.moshi.JsonReader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,6 +18,28 @@ import java.util.List;
 class GradientStrokeParser {
 
   private GradientStrokeParser() {}
+  private static JsonReader.Options NAMES = JsonReader.Options.of(
+      "nm",
+      "g",
+      "o",
+      "t",
+      "s",
+      "e",
+      "w",
+      "lc",
+      "lj",
+      "ml",
+      "hd",
+      "d"
+  );
+  private static final JsonReader.Options GRADIENT_NAMES = JsonReader.Options.of(
+      "p",
+      "k"
+  );
+  private static final JsonReader.Options DASH_PATTERN_NAMES = JsonReader.Options.of(
+      "n",
+      "v"
+  );
 
   static GradientStroke parse(
       JsonReader reader, LottieComposition composition) throws IOException {
@@ -31,68 +53,78 @@ class GradientStrokeParser {
     ShapeStroke.LineCapType capType = null;
     ShapeStroke.LineJoinType joinType = null;
     AnimatableFloatValue offset = null;
+    float miterLimit = 0f;
+    boolean hidden = false;
 
 
     List<AnimatableFloatValue> lineDashPattern = new ArrayList<>();
 
     while (reader.hasNext()) {
-      switch (reader.nextName()) {
-        case "nm":
+      switch (reader.selectName(NAMES)) {
+        case 0:
           name = reader.nextString();
           break;
-        case "g":
+        case 1:
           int points = -1;
           reader.beginObject();
           while (reader.hasNext()) {
-            switch (reader.nextName()) {
-              case "p":
+            switch (reader.selectName(GRADIENT_NAMES)) {
+              case 0:
                 points = reader.nextInt();
                 break;
-              case "k":
+              case 1:
                 color = AnimatableValueParser.parseGradientColor(reader, composition, points);
                 break;
               default:
+                reader.skipName();
                 reader.skipValue();
             }
           }
           reader.endObject();
           break;
-        case "o":
+        case 2:
           opacity = AnimatableValueParser.parseInteger(reader, composition);
           break;
-        case "t":
-          gradientType = reader.nextInt() == 1 ? GradientType.Linear : GradientType.Radial;
+        case 3:
+          gradientType = reader.nextInt() == 1 ? GradientType.LINEAR : GradientType.RADIAL;
           break;
-        case "s":
+        case 4:
           startPoint = AnimatableValueParser.parsePoint(reader, composition);
           break;
-        case "e":
+        case 5:
           endPoint = AnimatableValueParser.parsePoint(reader, composition);
           break;
-        case "w":
+        case 6:
           width = AnimatableValueParser.parseFloat(reader, composition);
           break;
-        case "lc":
+        case 7:
           capType = ShapeStroke.LineCapType.values()[reader.nextInt() - 1];
           break;
-        case "lj":
+        case 8:
           joinType = ShapeStroke.LineJoinType.values()[reader.nextInt() - 1];
           break;
-        case "d":
+        case 9:
+          miterLimit = (float) reader.nextDouble();
+          break;
+        case 10:
+          hidden = reader.nextBoolean();
+          break;
+        case 11:
           reader.beginArray();
           while (reader.hasNext()) {
             String n = null;
             AnimatableFloatValue val = null;
             reader.beginObject();
             while (reader.hasNext()) {
-              switch (reader.nextName()) {
-                case "n":
+              switch (reader.selectName(DASH_PATTERN_NAMES)) {
+                case 0:
                   n = reader.nextString();
                   break;
-                case "v":
+                case 1:
                   val = AnimatableValueParser.parseFloat(reader, composition);
                   break;
                 default:
+                  reader.skipName();
                   reader.skipValue();
               }
             }
@@ -101,6 +133,7 @@ class GradientStrokeParser {
             if (n.equals("o")) {
               offset = val;
             } else if (n.equals("d") || n.equals("g")) {
+              composition.setHasDashPattern(true);
               lineDashPattern.add(val);
             }
           }
@@ -111,12 +144,13 @@ class GradientStrokeParser {
           }
           break;
         default:
+          reader.skipName();
           reader.skipValue();
       }
     }
 
     return new GradientStroke(
         name, gradientType, color, opacity, startPoint, endPoint, width, capType, joinType,
-        lineDashPattern, offset);
+        miterLimit, lineDashPattern, offset, hidden);
   }
 }

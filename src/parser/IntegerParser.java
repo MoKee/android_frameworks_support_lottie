@@ -1,6 +1,6 @@
 package frameworks.support.lottie.parser;
 
-import android.util.JsonReader;
+import frameworks.support.lottie.parser.moshi.JsonReader;
 
 import java.io.IOException;
 

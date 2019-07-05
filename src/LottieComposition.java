@@ -3,38 +3,37 @@ package frameworks.support.lottie;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
-import android.os.AsyncTask;
-import android.support.annotation.Nullable;
-import android.support.annotation.RawRes;
-import android.support.annotation.RestrictTo;
-import android.support.v4.util.LongSparseArray;
-import android.support.v4.util.SparseArrayCompat;
-import android.util.JsonReader;
+import androidx.annotation.Nullable;
+import androidx.annotation.RawRes;
+import androidx.annotation.RestrictTo;
+import androidx.annotation.WorkerThread;
+import androidx.collection.LongSparseArray;
+import androidx.collection.SparseArrayCompat;
 import android.util.Log;
 
 import frameworks.support.lottie.model.Font;
 import frameworks.support.lottie.model.FontCharacter;
+import frameworks.support.lottie.model.Marker;
 import frameworks.support.lottie.model.layer.Layer;
-import frameworks.support.lottie.parser.AsyncCompositionLoader;
-import frameworks.support.lottie.parser.LottieCompositionParser;
+import frameworks.support.lottie.parser.moshi.JsonReader;
+import frameworks.support.lottie.utils.Logger;
 
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static frameworks.support.lottie.utils.Utils.closeQuietly;
-
 /**
  * After Effects/Bodymovin composition model. This is the serialized model from which the
  * animation will be created.
+ *
+ * To create one, use {@link LottieCompositionFactory}.
+ *
  * It can be used with a {@link frameworks.support.lottie.LottieAnimationView} or
  * {@link frameworks.support.lottie.LottieDrawable}.
  */
@@ -46,6 +45,7 @@ public class LottieComposition {
   private Map<String, LottieImageAsset> images;
   /** Map of font names to fonts */
   private Map<String, Font> fonts;
+  private List<Marker> markers;
   private SparseArrayCompat<FontCharacter> characters;
   private LongSparseArray<Layer> layerMap;
   private List<Layer> layers;
@@ -54,11 +54,23 @@ public class LottieComposition {
   private float startFrame;
   private float endFrame;
   private float frameRate;
+  /**
+   * Used to determine if an animation can be drawn with hardware acceleration.
+   */
+  private boolean hasDashPattern;
+  /**
+   * Counts the number of mattes and masks. Before Android switched to SKIA
+   * for drawing in Oreo (API 28), using hardware acceleration with mattes and masks
+   * was only faster until you had ~4 masks after which it would actually become slower.
+   */
+  private int maskAndMatteCount = 0;
 
+  @RestrictTo(RestrictTo.Scope.LIBRARY)
   public void init(Rect bounds, float startFrame, float endFrame, float frameRate,
       List<Layer> layers, LongSparseArray<Layer> layerMap, Map<String,
       List<Layer>> precomps, Map<String, LottieImageAsset> images,
-      SparseArrayCompat<FontCharacter> characters, Map<String, Font> fonts) {
+      SparseArrayCompat<FontCharacter> characters, Map<String, Font> fonts,
+      List<Marker> markers) {
     this.bounds = bounds;
     this.startFrame = startFrame;
     this.endFrame = endFrame;
@@ -69,12 +81,39 @@ public class LottieComposition {
     this.images = images;
     this.characters = characters;
     this.fonts = fonts;
+    this.markers = markers;
   }
 
   @RestrictTo(RestrictTo.Scope.LIBRARY)
   public void addWarning(String warning) {
-    Log.w(L.TAG, warning);
+    Logger.warning(warning);
     warnings.add(warning);
+  }
+
+  @RestrictTo(RestrictTo.Scope.LIBRARY)
+  public void setHasDashPattern(boolean hasDashPattern) {
+    this.hasDashPattern = hasDashPattern;
+  }
+
+  @RestrictTo(RestrictTo.Scope.LIBRARY)
+  public void incrementMatteOrMaskCount(int amount) {
+    maskAndMatteCount += amount;
+  }
+
+  /**
+   * Used to determine if an animation can be drawn with hardware acceleration.
+   */
+  @RestrictTo(RestrictTo.Scope.LIBRARY)
+  public boolean hasDashPattern() {
+    return hasDashPattern;
+  }
+
+  /**
+   * Used to determine if an animation can be drawn with hardware acceleration.
+   */
+  @RestrictTo(RestrictTo.Scope.LIBRARY)
+  public int getMaskAndMatteCount() {
+    return maskAndMatteCount;
   }
 
   public ArrayList<String> getWarnings() {
@@ -134,6 +173,22 @@ public class LottieComposition {
     return fonts;
   }
 
+  public List<Marker> getMarkers() {
+    return markers;
+  }
+
+  @Nullable
+  public Marker getMarker(String markerName) {
+    int size = markers.size();
+    for (int i = 0; i < markers.size(); i++) {
+      Marker marker = markers.get(i);
+      if (marker.matchesName(markerName)) {
+        return marker;
+      }
+    }
+    return null;
+  }
+
   public boolean hasImages() {
     return !images.isEmpty();
   }
@@ -155,125 +210,151 @@ public class LottieComposition {
     return sb.toString();
   }
 
-  @SuppressWarnings({"WeakerAccess"})
+  /**
+   * This will be removed in the next version of Lottie. {@link LottieCompositionFactory} has improved
+   * API names, failure handlers, and will return in-progress tasks so you will never parse the same
+   * animation twice in parallel.
+   *
+   * @see LottieCompositionFactory
+   */
+  @Deprecated
   public static class Factory {
     private Factory() {
     }
 
     /**
-     * Loads a composition from a file stored in /assets.
-     */
-    public static Cancellable fromAssetFileName(
-        Context context, String fileName, OnCompositionLoadedListener listener) {
-      InputStream stream;
-      try {
-        stream = context.getAssets().open(fileName);
-      } catch (IOException e) {
-        throw new IllegalArgumentException("Unable to find file " + fileName, e);
-      }
-      return fromInputStream(stream, listener);
-    }
-
-    /**
-     * Loads a composition from a file stored in res/raw.
-     */
-     public static Cancellable fromRawFile(
-         Context context, @RawRes int resId, OnCompositionLoadedListener listener) {
-      return fromInputStream(context.getResources().openRawResource(resId), listener);
-    }
-
-    /**
-     * Loads a composition from an arbitrary input stream.
-     * <p>
-     * ex: fromInputStream(context, new FileInputStream(filePath), (composition) -> {});
-     */
-    public static Cancellable fromInputStream(
-        InputStream stream, OnCompositionLoadedListener listener) {
-      return fromJsonReader(new JsonReader(new InputStreamReader(stream)), listener);
-    }
-
-    /**
-     * Loads a composition from a json string. This is preferable to loading a JSONObject because
-     * internally, Lottie uses {@link JsonReader} so any original overhead to create the JSONObject
-     * is wasted.
-     *
-     * This is the preferred method to use when loading an animation from the network because you
-     * have the response body as a raw string already. No need to convert it to a JSONObject.
-     *
-     * If you do have a JSONObject, you can call:
-     *    `new JsonReader(new StringReader(jsonObject));`
-     * However, this is not recommended.
-     */
-    public static Cancellable fromJsonString(
-        String jsonString, OnCompositionLoadedListener listener) {
-      return fromJsonReader(new JsonReader(new StringReader(jsonString)), listener);
-    }
-
-    /**
-     * Loads a composition from a json reader.
-     * <p>
-     * ex: fromInputStream(context, new FileInputStream(filePath), (composition) -> {});
-     */
-    public static Cancellable fromJsonReader(
-        JsonReader reader, OnCompositionLoadedListener listener) {
-      AsyncCompositionLoader loader = new AsyncCompositionLoader(listener);
-      loader.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, reader);
-      return loader;
-    }
-
-    @Nullable
-    public static LottieComposition fromFileSync(Context context, String fileName) {
-      try {
-        return fromInputStreamSync(context.getAssets().open(fileName));
-      } catch (IOException e) {
-        throw new IllegalArgumentException("Unable to open asset " + fileName, e);
-      }
-    }
-
-    @Nullable
-    public static LottieComposition fromInputStreamSync(InputStream stream) {
-      return fromInputStreamSync(stream, true);
-    }
-
-    @Nullable
-    public static LottieComposition fromInputStreamSync(InputStream stream, boolean close) {
-      LottieComposition composition;
-      try {
-        composition = fromJsonSync(new JsonReader(new InputStreamReader(stream)));
-      } catch (IOException e) {
-        throw new IllegalArgumentException("Unable to parse composition.", e);
-      } finally {
-        if (close) {
-          closeQuietly(stream);
-        }
-      }
-      return composition;
-    }
-
-    /**
-     * Lottie now uses a streaming json parser. Prefer {@link #fromJsonSync(JsonReader)} if possible.
-     * <p>
-     * This will call toString() on your entire JSONObject.
+     * @see LottieCompositionFactory#fromAsset(Context, String)
      */
     @Deprecated
-    public static LottieComposition fromJsonSync(@SuppressWarnings("unused") Resources res, JSONObject json) {
-      return fromJsonSync(json.toString());
+    public static Cancellable fromAssetFileName(Context context, String fileName, OnCompositionLoadedListener l) {
+      ListenerAdapter listener = new ListenerAdapter(l);
+      LottieCompositionFactory.fromAsset(context, fileName).addListener(listener);
+      return listener;
     }
 
     /**
-     * Prefer using a JsonReader directly when possible. Reference the source for the async
-     * factory methods above.
+     * @see LottieCompositionFactory#fromRawRes(Context, int)
      */
-    public static LottieComposition fromJsonSync(String string) {
-      try {
-        return fromJsonSync(new JsonReader(new StringReader(string)));
-      } catch (IOException e) {
-        throw new IllegalArgumentException(e);
-      }
+    @Deprecated
+     public static Cancellable fromRawFile(Context context, @RawRes int resId, OnCompositionLoadedListener l) {
+       ListenerAdapter listener = new ListenerAdapter(l);
+       LottieCompositionFactory.fromRawRes(context, resId).addListener(listener);
+       return listener;
     }
 
+    /**
+     * @see LottieCompositionFactory#fromJsonInputStream(InputStream)
+     */
+    @Deprecated
+    public static Cancellable fromInputStream(InputStream stream, OnCompositionLoadedListener l) {
+      ListenerAdapter listener = new ListenerAdapter(l);
+      LottieCompositionFactory.fromJsonInputStream(stream, null).addListener(listener);
+      return listener;
+    }
+
+    /**
+     * @see LottieCompositionFactory#fromJsonString(String)
+     */
+    @Deprecated
+    public static Cancellable fromJsonString(String jsonString, OnCompositionLoadedListener l) {
+      ListenerAdapter listener = new ListenerAdapter(l);
+      LottieCompositionFactory.fromJsonString(jsonString, null).addListener(listener);
+      return listener;
+    }
+
+    /**
+     * @see LottieCompositionFactory#fromJsonReader(JsonReader)
+     */
+    @Deprecated
+    public static Cancellable fromJsonReader(JsonReader reader, OnCompositionLoadedListener l) {
+      ListenerAdapter listener = new ListenerAdapter(l);
+      LottieCompositionFactory.fromJsonReader(reader, null).addListener(listener);
+      return listener;
+    }
+
+    /**
+     * @see LottieCompositionFactory#fromAssetSync(Context, String)
+     */
+    @Nullable
+    @WorkerThread
+    @Deprecated
+    public static LottieComposition fromFileSync(Context context, String fileName) {
+      return LottieCompositionFactory.fromAssetSync(context, fileName).getValue();
+    }
+
+    /**
+     * @see LottieCompositionFactory#fromJsonInputStreamSync(InputStream)
+     */
+    @Nullable
+    @WorkerThread
+    @Deprecated
+    public static LottieComposition fromInputStreamSync(InputStream stream) {
+      return LottieCompositionFactory.fromJsonInputStreamSync(stream, null).getValue();
+    }
+
+    /**
+     * This will now auto-close the input stream!
+     *
+     * @see LottieCompositionFactory#fromJsonInputStreamSync(InputStream, boolean)
+     */
+    @Nullable
+    @WorkerThread
+    @Deprecated
+    public static LottieComposition fromInputStreamSync(InputStream stream, boolean close) {
+      if (close) {
+        Logger.warning("Lottie now auto-closes input stream!");
+      }
+      return LottieCompositionFactory.fromJsonInputStreamSync(stream, null).getValue();
+    }
+
+    /**
+     * @see LottieCompositionFactory#fromJsonSync(JSONObject)
+     */
+    @Nullable
+    @WorkerThread
+    @Deprecated
+    public static LottieComposition fromJsonSync(@SuppressWarnings("unused") Resources res, JSONObject json) {
+      return LottieCompositionFactory.fromJsonSync(json, null).getValue();
+    }
+
+    /**
+     * @see LottieCompositionFactory#fromJsonStringSync(String)
+     */
+    @Nullable
+    @WorkerThread
+    @Deprecated
+    public static LottieComposition fromJsonSync(String json) {
+      return LottieCompositionFactory.fromJsonStringSync(json, null).getValue();
+    }
+
+    /**
+     * @see LottieCompositionFactory#fromJsonReaderSync(JsonReader)
+     */
+    @Nullable
+    @WorkerThread
+    @Deprecated
     public static LottieComposition fromJsonSync(JsonReader reader) throws IOException {
-      return LottieCompositionParser.parse(reader);
+      return LottieCompositionFactory.fromJsonReaderSync(reader, null).getValue();
+    }
+
+    private static final class ListenerAdapter implements LottieListener<LottieComposition>, Cancellable {
+      private final OnCompositionLoadedListener listener;
+      private boolean cancelled = false;
+
+      private ListenerAdapter(OnCompositionLoadedListener listener) {
+        this.listener = listener;
+      }
+
+      @Override public void onResult(LottieComposition composition) {
+        if (cancelled) {
+          return;
+        }
+        listener.onCompositionLoaded(composition);
+      }
+
+      @Override public void cancel() {
+        cancelled = true;
+      }
     }
   }
 }

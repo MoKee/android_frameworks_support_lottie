@@ -1,18 +1,22 @@
 package frameworks.support.lottie.parser;
 
-import android.support.annotation.Nullable;
-import android.util.JsonReader;
-import android.util.Log;
-
-import frameworks.support.lottie.L;
+import androidx.annotation.Nullable;
 import frameworks.support.lottie.LottieComposition;
 import frameworks.support.lottie.model.content.ContentModel;
+import frameworks.support.lottie.parser.moshi.JsonReader;
+import frameworks.support.lottie.utils.Logger;
 
 import java.io.IOException;
 
 class ContentModelParser {
 
-  private ContentModelParser() {}
+  private static JsonReader.Options NAMES = JsonReader.Options.of(
+      "ty",
+      "d"
+  );
+
+  private ContentModelParser() {
+  }
 
   @Nullable
   static ContentModel parse(JsonReader reader, LottieComposition composition)
@@ -26,14 +30,15 @@ class ContentModelParser {
     int d = 2;
     typeLoop:
     while (reader.hasNext()) {
-      switch (reader.nextName()) {
-        case "ty":
+      switch (reader.selectName(NAMES)) {
+        case 0:
           type = reader.nextString();
           break typeLoop;
-        case "d":
+        case 1:
           d = reader.nextInt();
           break;
         default:
+          reader.skipName();
           reader.skipValue();
       }
     }
@@ -87,7 +92,7 @@ class ContentModelParser {
         model = RepeaterParser.parse(reader, composition);
         break;
       default:
-        Log.w(L.TAG, "Unknown shape type " + type);
+        Logger.warning("Unknown shape type " + type);
     }
 
     while (reader.hasNext()) {

@@ -1,6 +1,8 @@
 package frameworks.support.lottie;
 
-import android.support.annotation.RestrictTo;
+import android.graphics.Bitmap;
+import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
 
 /**
  * Data class describing an image asset exported by bodymovin.
@@ -11,6 +13,8 @@ public class LottieImageAsset {
   private final String id;
   private final String fileName;
   private final String dirName;
+  /** Pre-set a bitmap for this asset */
+  @Nullable private Bitmap bitmap;
 
   @RestrictTo(RestrictTo.Scope.LIBRARY)
   public LottieImageAsset(int width, int height, String id, String fileName, String dirName) {
@@ -39,5 +43,19 @@ public class LottieImageAsset {
 
   @SuppressWarnings("unused") public String getDirName() {
     return dirName;
+  }
+
+  /**
+   * Returns the bitmap that has been stored for this image asset if one was explicitly set.
+   */
+  @Nullable public Bitmap getBitmap() {
+    return bitmap;
+  }
+
+  /**
+   * TODO
+   */
+  public void setBitmap(@Nullable Bitmap bitmap) {
+    this.bitmap = bitmap;
   }
 }

@@ -1,7 +1,7 @@
 package frameworks.support.lottie.value;
 
 import android.graphics.PointF;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import frameworks.support.lottie.utils.MiscUtils;
 

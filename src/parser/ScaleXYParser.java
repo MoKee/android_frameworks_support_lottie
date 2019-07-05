@@ -1,8 +1,8 @@
 package frameworks.support.lottie.parser;
 
-import android.util.JsonReader;
 import android.util.JsonToken;
 
+import frameworks.support.lottie.parser.moshi.JsonReader;
 import frameworks.support.lottie.value.ScaleXY;
 
 import java.io.IOException;
@@ -14,7 +14,7 @@ public class ScaleXYParser implements ValueParser<ScaleXY> {
   }
 
   @Override public ScaleXY parse(JsonReader reader, float scale) throws IOException {
-    boolean isArray = reader.peek() == JsonToken.BEGIN_ARRAY;
+    boolean isArray = reader.peek() == JsonReader.Token.BEGIN_ARRAY;
     if (isArray) {
       reader.beginArray();
     }
@@ -28,4 +28,5 @@ public class ScaleXYParser implements ValueParser<ScaleXY> {
     }
     return new ScaleXY(sx / 100f * scale, sy / 100f * scale);
   }
+
 }

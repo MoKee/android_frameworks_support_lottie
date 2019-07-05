@@ -1,12 +1,17 @@
 package frameworks.support.lottie.parser;
 
-import android.util.JsonReader;
-
 import frameworks.support.lottie.model.Font;
+import frameworks.support.lottie.parser.moshi.JsonReader;
 
 import java.io.IOException;
 
 class FontParser {
+  private static final JsonReader.Options NAMES = JsonReader.Options.of(
+      "fFamily",
+      "fName",
+      "fStyle",
+      "ascent"
+  );
 
   private FontParser() {}
 
@@ -18,20 +23,21 @@ class FontParser {
 
     reader.beginObject();
     while (reader.hasNext()) {
-      switch (reader.nextName()) {
-        case "fFamily":
+      switch (reader.selectName(NAMES)) {
+        case 0:
           family = reader.nextString();
           break;
-        case "fName":
+        case 1:
           name = reader.nextString();
           break;
-        case "fStyle":
+        case 2:
           style = reader.nextString();
           break;
-        case "ascent":
+        case 3:
           ascent = (float) reader.nextDouble();
           break;
         default:
+          reader.skipName();
           reader.skipValue();
       }
     }

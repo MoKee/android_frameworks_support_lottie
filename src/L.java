@@ -1,13 +1,13 @@
 package frameworks.support.lottie;
 
-import android.support.annotation.RestrictTo;
-import android.support.v4.os.TraceCompat;
-import android.util.Log;
+import androidx.annotation.RestrictTo;
+import androidx.core.os.TraceCompat;
 
 @RestrictTo(RestrictTo.Scope.LIBRARY)
 public class L {
+
+  public static boolean DBG = false;
   public static final String TAG = "LOTTIE";
-  public static final boolean DBG = false;
 
   private static final int MAX_DEPTH = 20;
   private static boolean traceEnabled = false;
@@ -15,10 +15,6 @@ public class L {
   private static long[] startTimeNs;
   private static int traceDepth = 0;
   private static int depthPastMaxDepth = 0;
-
-  public static void warn(String msg) {
-    Log.w(TAG, msg);
-  }
 
   public static void setTraceEnabled(boolean enabled) {
     if (traceEnabled == enabled) {

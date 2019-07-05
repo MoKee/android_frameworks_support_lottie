@@ -1,6 +1,6 @@
 package frameworks.support.lottie.value;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import frameworks.support.lottie.utils.MiscUtils;
 

@@ -12,7 +12,7 @@ public class PathKeyframeAnimation extends KeyframeAnimation<PointF> {
   private final PointF point = new PointF();
   private final float[] pos = new float[2];
   private PathKeyframe pathMeasureKeyframe;
-  private PathMeasure pathMeasure;
+  private PathMeasure pathMeasure = new PathMeasure();
 
   public PathKeyframeAnimation(List<? extends Keyframe<PointF>> keyframes) {
     super(keyframes);
@@ -26,13 +26,16 @@ public class PathKeyframeAnimation extends KeyframeAnimation<PointF> {
     }
 
     if (valueCallback != null) {
-      return valueCallback.getValueInternal(pathKeyframe.startFrame, pathKeyframe.endFrame,
-          pathKeyframe.startValue, pathKeyframe.endValue, getLinearCurrentKeyframeProgress(),
-          keyframeProgress, getProgress());
+      PointF value = valueCallback.getValueInternal(pathKeyframe.startFrame, pathKeyframe.endFrame,
+              pathKeyframe.startValue, pathKeyframe.endValue, getLinearCurrentKeyframeProgress(),
+              keyframeProgress, getProgress());
+      if (value != null) {
+        return value;
+      }
     }
 
     if (pathMeasureKeyframe != pathKeyframe) {
-      pathMeasure = new PathMeasure(path, false);
+      pathMeasure.setPath(path, false);
       pathMeasureKeyframe = pathKeyframe;
     }
 

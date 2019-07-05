@@ -1,14 +1,14 @@
 package frameworks.support.lottie.parser;
 
 import android.graphics.PointF;
-import android.support.annotation.Nullable;
-import android.support.v4.util.SparseArrayCompat;
-import android.support.v4.view.animation.PathInterpolatorCompat;
-import android.util.JsonReader;
+import androidx.annotation.Nullable;
+import androidx.collection.SparseArrayCompat;
+import androidx.core.view.animation.PathInterpolatorCompat;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
 
 import frameworks.support.lottie.LottieComposition;
+import frameworks.support.lottie.parser.moshi.JsonReader;
 import frameworks.support.lottie.value.Keyframe;
 import frameworks.support.lottie.utils.MiscUtils;
 import frameworks.support.lottie.utils.Utils;
@@ -26,7 +26,17 @@ class KeyframeParser {
   private static final Interpolator LINEAR_INTERPOLATOR = new LinearInterpolator();
   private static SparseArrayCompat<WeakReference<Interpolator>> pathInterpolatorCache;
 
-  // https://github.com/airbnb/lottie-android/issues/464
+  static JsonReader.Options NAMES = JsonReader.Options.of(
+      "t",
+      "s",
+      "e",
+      "o",
+      "i",
+      "h",
+      "to",
+      "ti"
+  );
+  // https://github.frameworks.support.lottie-android/issues/464
   private static SparseArrayCompat<WeakReference<Interpolator>> pathInterpolatorCache() {
     if (pathInterpolatorCache == null) {
       pathInterpolatorCache = new SparseArrayCompat<>();
@@ -52,7 +62,7 @@ class KeyframeParser {
   }
 
   static <T> Keyframe<T> parse(JsonReader reader, LottieComposition composition,
-      float scale, ValueParser<T> valueParser, boolean animated) throws IOException {
+                               float scale, ValueParser<T> valueParser, boolean animated) throws IOException {
 
     if (animated) {
       return parseKeyframe(composition, reader, scale, valueParser);
@@ -81,29 +91,29 @@ class KeyframeParser {
 
     reader.beginObject();
     while (reader.hasNext()) {
-      switch (reader.nextName()) {
-        case "t":
+      switch (reader.selectName(NAMES)) {
+        case 0:
           startFrame = (float) reader.nextDouble();
           break;
-        case "s":
+        case 1:
           startValue = valueParser.parse(reader, scale);
           break;
-        case "e":
+        case 2:
           endValue = valueParser.parse(reader, scale);
           break;
-        case "o":
+        case 3:
           cp1 = JsonUtils.jsonToPoint(reader, scale);
           break;
-        case "i":
+        case 4:
           cp2 = JsonUtils.jsonToPoint(reader, scale);
           break;
-        case "h":
+        case 5:
           hold = reader.nextInt() == 1;
           break;
-        case "to":
+        case 6:
           pathCp1 = JsonUtils.jsonToPoint(reader, scale);
           break;
-        case "ti":
+        case 7:
           pathCp2 = JsonUtils.jsonToPoint(reader, scale);
           break;
         default:
@@ -133,7 +143,7 @@ class KeyframeParser {
           putInterpolator(hash, new WeakReference<>(interpolator));
         } catch (ArrayIndexOutOfBoundsException e) {
           // It is not clear why but SparseArrayCompat sometimes fails with this:
-          //     https://github.com/airbnb/lottie-android/issues/452
+          //     https://github.frameworks.support.lottie-android/issues/452
           // Because this is not a critical operation, we can safely just ignore it.
           // I was unable to repro this to attempt a proper fix.
         }

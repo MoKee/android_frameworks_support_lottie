@@ -1,14 +1,18 @@
 package frameworks.support.lottie.model;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
 
 import frameworks.support.lottie.value.LottieValueCallback;
 
 import java.util.List;
 
+import static androidx.annotation.RestrictTo.Scope.LIBRARY;
+
 /**
  * Any item that can be a part of a {@link KeyPath} should implement this.
  */
+@RestrictTo(LIBRARY)
 public interface KeyPathElement {
 
   /**

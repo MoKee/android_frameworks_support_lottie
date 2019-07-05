@@ -1,9 +1,9 @@
 package frameworks.support.lottie.parser;
 
-import android.support.annotation.Nullable;
-import android.util.JsonReader;
+import androidx.annotation.Nullable;
 
 import frameworks.support.lottie.LottieComposition;
+import frameworks.support.lottie.parser.moshi.JsonReader;
 import frameworks.support.lottie.value.Keyframe;
 import frameworks.support.lottie.model.animatable.AnimatableColorValue;
 import frameworks.support.lottie.model.animatable.AnimatableFloatValue;

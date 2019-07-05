@@ -6,12 +6,14 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 import frameworks.support.lottie.L;
 import frameworks.support.lottie.LottieDrawable;
 import frameworks.support.lottie.LottieProperty;
+import frameworks.support.lottie.animation.LPaint;
 import frameworks.support.lottie.animation.keyframe.BaseKeyframeAnimation;
+import frameworks.support.lottie.animation.keyframe.ColorKeyframeAnimation;
 import frameworks.support.lottie.animation.keyframe.ValueCallbackKeyframeAnimation;
 import frameworks.support.lottie.model.KeyPath;
 import frameworks.support.lottie.model.content.ShapeFill;
@@ -27,8 +29,10 @@ import static frameworks.support.lottie.utils.MiscUtils.clamp;
 public class FillContent
     implements DrawingContent, BaseKeyframeAnimation.AnimationListener, KeyPathElementContent {
   private final Path path = new Path();
-  private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private final Paint paint = new LPaint(Paint.ANTI_ALIAS_FLAG);
+  private final BaseLayer layer;
   private final String name;
+  private final boolean hidden;
   private final List<PathContent> paths = new ArrayList<>();
   private final BaseKeyframeAnimation<Integer, Integer> colorAnimation;
   private final BaseKeyframeAnimation<Integer, Integer> opacityAnimation;
@@ -36,7 +40,9 @@ public class FillContent
   private final LottieDrawable lottieDrawable;
 
   public FillContent(final LottieDrawable lottieDrawable, BaseLayer layer, ShapeFill fill) {
+    this.layer = layer;
     name = fill.getName();
+    hidden = fill.isHidden();
     this.lottieDrawable = lottieDrawable;
     if (fill.getColor() == null || fill.getOpacity() == null ) {
       colorAnimation = null;
@@ -72,8 +78,11 @@ public class FillContent
   }
 
   @Override public void draw(Canvas canvas, Matrix parentMatrix, int parentAlpha) {
+    if (hidden) {
+      return;
+    }
     L.beginSection("FillContent#draw");
-    paint.setColor(colorAnimation.getValue());
+    paint.setColor(((ColorKeyframeAnimation) colorAnimation).getIntValue());
     int alpha = (int) ((parentAlpha / 255f * opacityAnimation.getValue() / 100f) * 255);
     paint.setAlpha(clamp(alpha, 0, 255));
 
@@ -91,7 +100,7 @@ public class FillContent
     L.endSection("FillContent#draw");
   }
 
-  @Override public void getBounds(RectF outBounds, Matrix parentMatrix) {
+  @Override public void getBounds(RectF outBounds, Matrix parentMatrix, boolean applyParents) {
     path.reset();
     for (int i = 0; i < paths.size(); i++) {
       this.path.addPath(paths.get(i).getPath(), parentMatrix);
@@ -124,6 +133,8 @@ public class FillContent
       } else {
         colorFilterAnimation =
             new ValueCallbackKeyframeAnimation<>((LottieValueCallback<ColorFilter>) callback);
+        colorFilterAnimation.addUpdateListener(this);
+        layer.addAnimation(colorFilterAnimation);
       }
     }
   }

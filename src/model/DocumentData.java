@@ -1,25 +1,35 @@
 package frameworks.support.lottie.model;
 
-import android.support.annotation.ColorInt;
+import androidx.annotation.ColorInt;
+import androidx.annotation.RestrictTo;
 
+import static androidx.annotation.RestrictTo.Scope.LIBRARY;
+
+@RestrictTo(LIBRARY)
 public class DocumentData {
+
+  public enum Justification {
+    LEFT_ALIGN,
+    RIGHT_ALIGN,
+    CENTER
+  }
 
   public final String text;
   @SuppressWarnings("WeakerAccess") public final String fontName;
   public final double size;
-  @SuppressWarnings("WeakerAccess") final int justification;
+  @SuppressWarnings("WeakerAccess") public final Justification justification;
   public final int tracking;
-  @SuppressWarnings("WeakerAccess") final double lineHeight;
+  @SuppressWarnings("WeakerAccess") public final double lineHeight;
   public final double baselineShift;
   @ColorInt public final int color;
   @ColorInt public final int strokeColor;
-  public final int strokeWidth;
+  public final double strokeWidth;
   public final boolean strokeOverFill;
 
 
-  public DocumentData(String text, String fontName, double size, int justification, int tracking,
+  public DocumentData(String text, String fontName, double size, Justification justification, int tracking,
       double lineHeight, double baselineShift, @ColorInt int color, @ColorInt int strokeColor,
-      int strokeWidth, boolean strokeOverFill) {
+      double strokeWidth, boolean strokeOverFill) {
     this.text = text;
     this.fontName = fontName;
     this.size = size;
@@ -39,7 +49,7 @@ public class DocumentData {
     result = text.hashCode();
     result = 31 * result + fontName.hashCode();
     result = (int) (31 * result + size);
-    result = 31 * result + justification;
+    result = 31 * result + justification.ordinal();
     result = 31 * result + tracking;
     temp = Double.doubleToLongBits(lineHeight);
     result = 31 * result + (int) (temp ^ (temp >>> 32));

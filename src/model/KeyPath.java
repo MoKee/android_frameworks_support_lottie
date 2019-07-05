@@ -1,8 +1,8 @@
 package frameworks.support.lottie.model;
 
-import android.support.annotation.CheckResult;
-import android.support.annotation.Nullable;
-import android.support.annotation.RestrictTo;
+import androidx.annotation.CheckResult;
+import androidx.annotation.Nullable;
+import androidx.annotation.RestrictTo;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -185,7 +185,7 @@ public class KeyPath {
   @SuppressWarnings("SimplifiableIfStatement")
   @RestrictTo(RestrictTo.Scope.LIBRARY)
   public boolean propagateToChildren(String key, int depth) {
-    if (key.equals("__container")) {
+    if ("__container".equals(key)) {
       return true;
     }
     return depth < keys.size() - 1 || keys.get(depth).equals("**");
@@ -196,7 +196,7 @@ public class KeyPath {
    * and for the contents of a ShapeLayer).
    */
   private boolean isContainer(String key) {
-    return key.equals("__container");
+    return "__container".equals(key);
   }
 
   private boolean endsWithGlobstar() {

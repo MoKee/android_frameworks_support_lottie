@@ -15,8 +15,7 @@ import java.util.List;
 
 import static junit.framework.Assert.assertEquals;
 
-@RunWith(RobolectricTestRunner.class)
-public class KeyPathTest {
+public class KeyPathTest extends BaseTest {
   private static final String[] V = {
       "Shape Layer 1",
       "Group 1",
@@ -32,13 +31,8 @@ public class KeyPathTest {
   @Before
   public void setupDrawable() {
     lottieDrawable = new LottieDrawable();
-    try {
-      LottieComposition composition = LottieComposition.Factory
-          .fromJsonSync(new JsonReader(new StringReader(Fixtures.SQUARES)));
-      lottieDrawable.setComposition(composition);
-    } catch (IOException e) {
-      throw new IllegalStateException(e);
-    }
+    LottieComposition composition = LottieCompositionFactory.fromJsonStringSync(Fixtures.SQUARES, "squares").getValue();
+    lottieDrawable.setComposition(composition);
   }
 
   //<editor-fold desc="Basic Tests">

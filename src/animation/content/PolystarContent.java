@@ -2,7 +2,7 @@ package frameworks.support.lottie.animation.content;
 
 import android.graphics.Path;
 import android.graphics.PointF;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 import frameworks.support.lottie.LottieDrawable;
 import frameworks.support.lottie.LottieProperty;
@@ -12,7 +12,6 @@ import frameworks.support.lottie.model.content.PolystarShape;
 import frameworks.support.lottie.model.content.ShapeTrimPath;
 import frameworks.support.lottie.model.layer.BaseLayer;
 import frameworks.support.lottie.utils.MiscUtils;
-import frameworks.support.lottie.utils.Utils;
 import frameworks.support.lottie.value.LottieValueCallback;
 
 import java.util.List;
@@ -32,6 +31,7 @@ public class PolystarContent
   private final String name;
   private final LottieDrawable lottieDrawable;
   private final PolystarShape.Type type;
+  private final boolean hidden;
   private final BaseKeyframeAnimation<?, Float> pointsAnimation;
   private final BaseKeyframeAnimation<?, PointF> positionAnimation;
   private final BaseKeyframeAnimation<?, Float> rotationAnimation;
@@ -40,7 +40,7 @@ public class PolystarContent
   @Nullable private final BaseKeyframeAnimation<?, Float> innerRoundednessAnimation;
   private final BaseKeyframeAnimation<?, Float> outerRoundednessAnimation;
 
-  @Nullable private TrimPathContent trimPath;
+  private CompoundTrimPathContent trimPaths = new CompoundTrimPathContent();
   private boolean isPathValid;
 
   public PolystarContent(LottieDrawable lottieDrawable, BaseLayer layer,
@@ -49,12 +49,13 @@ public class PolystarContent
 
     name = polystarShape.getName();
     type = polystarShape.getType();
+    hidden = polystarShape.isHidden();
     pointsAnimation = polystarShape.getPoints().createAnimation();
     positionAnimation = polystarShape.getPosition().createAnimation();
     rotationAnimation = polystarShape.getRotation().createAnimation();
     outerRadiusAnimation = polystarShape.getOuterRadius().createAnimation();
     outerRoundednessAnimation = polystarShape.getOuterRoundedness().createAnimation();
-    if (type == PolystarShape.Type.Star) {
+    if (type == PolystarShape.Type.STAR) {
       innerRadiusAnimation = polystarShape.getInnerRadius().createAnimation();
       innerRoundednessAnimation = polystarShape.getInnerRoundedness().createAnimation();
     } else {
@@ -67,7 +68,7 @@ public class PolystarContent
     layer.addAnimation(rotationAnimation);
     layer.addAnimation(outerRadiusAnimation);
     layer.addAnimation(outerRoundednessAnimation);
-    if (type == PolystarShape.Type.Star) {
+    if (type == PolystarShape.Type.STAR) {
       layer.addAnimation(innerRadiusAnimation);
       layer.addAnimation(innerRoundednessAnimation);
     }
@@ -77,9 +78,9 @@ public class PolystarContent
     rotationAnimation.addUpdateListener(this);
     outerRadiusAnimation.addUpdateListener(this);
     outerRoundednessAnimation.addUpdateListener(this);
-    if (type == PolystarShape.Type.Star) {
-      outerRadiusAnimation.addUpdateListener(this);
-      outerRoundednessAnimation.addUpdateListener(this);
+    if (type == PolystarShape.Type.STAR) {
+      innerRadiusAnimation.addUpdateListener(this);
+      innerRoundednessAnimation.addUpdateListener(this);
     }
   }
 
@@ -96,8 +97,9 @@ public class PolystarContent
     for (int i = 0; i < contentsBefore.size(); i++) {
       Content content = contentsBefore.get(i);
       if (content instanceof TrimPathContent &&
-          ((TrimPathContent) content).getType() == ShapeTrimPath.Type.Simultaneously) {
-        trimPath = (TrimPathContent) content;
+          ((TrimPathContent) content).getType() == ShapeTrimPath.Type.SIMULTANEOUSLY) {
+        TrimPathContent trimPath = (TrimPathContent) content;
+        trimPaths.addTrimPath(trimPath);
         trimPath.addListener(this);
       }
     }
@@ -110,18 +112,23 @@ public class PolystarContent
 
     path.reset();
 
+    if (hidden) {
+      isPathValid = true;
+      return path;
+    }
+
     switch (type) {
-      case Star:
+      case STAR:
         createStarPath();
         break;
-      case Polygon:
+      case POLYGON:
         createPolygonPath();
         break;
     }
 
     path.close();
 
-    Utils.applyTrimPathIfNeeded(path, trimPath);
+    trimPaths.apply(path);
 
     isPathValid = true;
     return path;

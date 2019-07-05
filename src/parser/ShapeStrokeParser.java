@@ -1,12 +1,12 @@
 package frameworks.support.lottie.parser;
 
-import android.util.JsonReader;
 
 import frameworks.support.lottie.LottieComposition;
 import frameworks.support.lottie.model.animatable.AnimatableColorValue;
 import frameworks.support.lottie.model.animatable.AnimatableFloatValue;
 import frameworks.support.lottie.model.animatable.AnimatableIntegerValue;
 import frameworks.support.lottie.model.content.ShapeStroke;
+import frameworks.support.lottie.parser.moshi.JsonReader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -14,7 +14,24 @@ import java.util.List;
 
 class ShapeStrokeParser {
 
-  private ShapeStrokeParser() {}
+  private static JsonReader.Options NAMES = JsonReader.Options.of(
+      "nm",
+      "c",
+      "w",
+      "o",
+      "lc",
+      "lj",
+      "ml",
+      "hd",
+      "d"
+  );
+  private static final JsonReader.Options DASH_PATTERN_NAMES = JsonReader.Options.of(
+      "n",
+      "v"
+  );
+
+  private ShapeStrokeParser() {
+  }
 
   static ShapeStroke parse(
       JsonReader reader, LottieComposition composition) throws IOException {
@@ -25,30 +42,38 @@ class ShapeStrokeParser {
     ShapeStroke.LineCapType capType = null;
     ShapeStroke.LineJoinType joinType = null;
     AnimatableFloatValue offset = null;
+    float miterLimit = 0f;
+    boolean hidden = false;
 
     List<AnimatableFloatValue> lineDashPattern = new ArrayList<>();
 
     while (reader.hasNext()) {
-      switch (reader.nextName()) {
-        case "nm":
+      switch (reader.selectName(NAMES)) {
+        case 0:
           name = reader.nextString();
           break;
-        case "c":
+        case 1:
           color = AnimatableValueParser.parseColor(reader, composition);
           break;
-        case "w":
+        case 2:
           width = AnimatableValueParser.parseFloat(reader, composition);
           break;
-        case "o":
+        case 3:
           opacity = AnimatableValueParser.parseInteger(reader, composition);
           break;
-        case "lc":
+        case 4:
           capType = ShapeStroke.LineCapType.values()[reader.nextInt() - 1];
           break;
-        case "lj":
+        case 5:
           joinType = ShapeStroke.LineJoinType.values()[reader.nextInt() - 1];
           break;
-        case "d":
+        case 6:
+          miterLimit = (float) reader.nextDouble();
+          break;
+        case 7:
+          hidden = reader.nextBoolean();
+          break;
+        case 8:
           reader.beginArray();
           while (reader.hasNext()) {
             String n = null;
@@ -56,14 +81,15 @@ class ShapeStrokeParser {
 
             reader.beginObject();
             while (reader.hasNext()) {
-              switch (reader.nextName()) {
-                case "n":
+              switch (reader.selectName(DASH_PATTERN_NAMES)) {
+                case 0:
                   n = reader.nextString();
                   break;
-                case "v":
+                case 1:
                   val = AnimatableValueParser.parseFloat(reader, composition);
                   break;
                 default:
+                  reader.skipName();
                   reader.skipValue();
               }
             }
@@ -75,6 +101,7 @@ class ShapeStrokeParser {
                 break;
               case "d":
               case "g":
+                composition.setHasDashPattern(true);
                 lineDashPattern.add(val);
                 break;
             }
@@ -92,6 +119,6 @@ class ShapeStrokeParser {
     }
 
     return new ShapeStroke(
-        name, offset, lineDashPattern, color, opacity, width, capType, joinType);
+        name, offset, lineDashPattern, color, opacity, width, capType, joinType, miterLimit, hidden);
   }
 }
